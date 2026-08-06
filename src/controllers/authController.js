@@ -137,3 +137,11 @@ export const iniciarSesion = async (req, res) => {
     });
   }
 };
+
+
+export const obtenerPerfil = async (req, res) => {
+  return res.status(200).json({
+    ok: true,
+    usuario: req.usuario,
+  });
+};
