@@ -14,10 +14,24 @@ const crearToken = (usuario) => {
       rol: usuario.rol,
     },
     jwtSecret,
-    {
-      expiresIn: "7d",
-    },
+    { expiresIn: "7d" },
   );
+};
+
+const responderErrorDuplicado = (error, res) => {
+  if (error?.code !== 11000) return false;
+
+  const campo = Object.keys(error.keyPattern || {})[0];
+
+  res.status(409).json({
+    ok: false,
+    mensaje:
+      campo === "usuario"
+        ? "Ese nombre de usuario ya está en uso."
+        : "Ese correo ya está registrado.",
+  });
+
+  return true;
 };
 
 export const registrar = async (req, res) => {
@@ -39,7 +53,10 @@ export const registrar = async (req, res) => {
     }
 
     const correoNormalizado = correo.trim().toLowerCase();
-    const usuarioNormalizado = usuario.trim().toLowerCase();
+    const usuarioNormalizado = usuario
+      .trim()
+      .toLowerCase()
+      .replace(/^@/, "");
 
     const existente = await User.findOne({
       $or: [
@@ -73,6 +90,8 @@ export const registrar = async (req, res) => {
       usuario: nuevoUsuario,
     });
   } catch (error) {
+    if (responderErrorDuplicado(error, res)) return undefined;
+
     console.error("Error registrando usuario:", error.message);
 
     return res.status(500).json({
@@ -138,10 +157,105 @@ export const iniciarSesion = async (req, res) => {
   }
 };
 
-
 export const obtenerPerfil = async (req, res) => {
   return res.status(200).json({
     ok: true,
     usuario: req.usuario,
   });
+};
+
+export const actualizarPerfil = async (req, res) => {
+  try {
+    const {
+      nombre,
+      usuario,
+      biografia = "",
+      ubicacion = "",
+      foto = "",
+      portada = "",
+    } = req.body;
+
+    const nombreLimpio = nombre?.trim();
+    const usuarioLimpio = usuario
+      ?.trim()
+      .toLowerCase()
+      .replace(/^@/, "");
+
+    if (!nombreLimpio || !usuarioLimpio) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "El nombre y el nombre de usuario son obligatorios.",
+      });
+    }
+
+    if (!/^[a-z0-9._]{3,30}$/.test(usuarioLimpio)) {
+      return res.status(400).json({
+        ok: false,
+        mensaje:
+          "El usuario debe tener entre 3 y 30 caracteres y solo puede contener letras, números, puntos o guiones bajos.",
+      });
+    }
+
+    if (biografia.trim().length > 160) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "La biografía no puede superar los 160 caracteres.",
+      });
+    }
+
+    const usuarioOcupado = await User.findOne({
+      usuario: usuarioLimpio,
+      _id: { $ne: req.usuario._id },
+    });
+
+    if (usuarioOcupado) {
+      return res.status(409).json({
+        ok: false,
+        mensaje: "Ese nombre de usuario ya está en uso.",
+      });
+    }
+
+    const imagenes = [foto, portada].filter(Boolean);
+    const formatoImagenValido = /^data:image\/(jpeg|png|webp);base64,/;
+
+    if (imagenes.some((imagen) => !formatoImagenValido.test(imagen))) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "La foto o portada tiene un formato inválido.",
+      });
+    }
+
+    if (imagenes.some((imagen) => imagen.length > 1_500_000)) {
+      return res.status(413).json({
+        ok: false,
+        mensaje: "Cada imagen debe pesar menos de 1 MB.",
+      });
+    }
+
+    req.usuario.nombre = nombreLimpio;
+    req.usuario.usuario = usuarioLimpio;
+    req.usuario.biografia = biografia.trim();
+    req.usuario.ubicacion =
+      ubicacion.trim() || "República Dominicana";
+    req.usuario.foto = foto;
+    req.usuario.portada = portada;
+    req.usuario.ultimaActividad = new Date();
+
+    await req.usuario.save();
+
+    return res.status(200).json({
+      ok: true,
+      mensaje: "Perfil actualizado correctamente.",
+      usuario: req.usuario,
+    });
+  } catch (error) {
+    if (responderErrorDuplicado(error, res)) return undefined;
+
+    console.error("Error actualizando perfil:", error.message);
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo actualizar el perfil.",
+    });
+  }
 };

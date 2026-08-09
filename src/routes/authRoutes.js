@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  actualizarPerfil,
   iniciarSesion,
   obtenerPerfil,
   registrar,
@@ -11,5 +12,6 @@ const router = Router();
 router.post("/registro", registrar);
 router.post("/login", iniciarSesion);
 router.get("/perfil", protegerRuta, obtenerPerfil);
+router.put("/perfil", protegerRuta, actualizarPerfil);
 
 export default router;

@@ -5,23 +5,21 @@ export const protegerRuta = async (req, res, next) => {
   try {
     const autorizacion = req.headers.authorization;
 
-    if (
-      !autorizacion ||
-      !autorizacion.startsWith("Bearer ")
-    ) {
+    if (!autorizacion?.startsWith("Bearer ")) {
       return res.status(401).json({
         ok: false,
         mensaje: "Debes iniciar sesión para continuar.",
       });
     }
 
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET no está configurado");
+    }
+
     const token = autorizacion.split(" ")[1];
-
-    const datosToken = jwt.verify(
-      token,
-      process.env.JWT_SECRET,
-    );
-
+    const datosToken = jwt.verify(token, jwtSecret);
     const usuario = await User.findById(datosToken.id);
 
     if (!usuario) {
@@ -32,20 +30,11 @@ export const protegerRuta = async (req, res, next) => {
     }
 
     req.usuario = usuario;
-
-    next();
+    return next();
   } catch {
     return res.status(401).json({
       ok: false,
       mensaje: "La sesión no es válida o ha expirado.",
     });
   }
-};
-
-
-export const obtenerPerfil = async (req, res) => {
-  return res.status(200).json({
-    ok: true,
-    usuario: req.usuario,
-  });
 };
