@@ -1,7 +1,10 @@
 import cors from "cors";
 import express from "express";
+
 import authRoutes from "./routes/authRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import postRoutes from "./routes/postRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 
 const app = express();
@@ -17,25 +20,45 @@ const origenesPermitidos = (
 app.use(
   cors({
     origin(origen, callback) {
-      if (!origen || origenesPermitidos.includes(origen)) {
+      if (
+        !origen ||
+        origenesPermitidos.includes(origen)
+      ) {
         callback(null, true);
         return;
       }
 
-      callback(new Error("Origen no permitido por CORS"));
+      callback(
+        new Error("Origen no permitido por CORS"),
+      );
     },
+
     credentials: true,
   }),
 );
 
-app.use(express.json({ limit: "4mb" }));
-app.use(express.urlencoded({ extended: true, limit: "4mb" }));
+app.use(
+  express.json({
+    limit: "4mb",
+  }),
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "4mb",
+  }),
+);
 
 app.use("/api/auth", authRoutes);
 
 app.use("/api/users", userRoutes);
 
 app.use("/api/chats", chatRoutes);
+
+app.use("/api/posts", postRoutes);
+
+app.use("/api/reports", reportRoutes);
 
 app.get("/", (req, res) => {
   res.json({
@@ -53,7 +76,10 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use((error, req, res, next) => {
-  if (error?.message === "Origen no permitido por CORS") {
+  if (
+    error?.message ===
+    "Origen no permitido por CORS"
+  ) {
     return res.status(403).json({
       ok: false,
       mensaje: error.message,
@@ -63,7 +89,8 @@ app.use((error, req, res, next) => {
   if (error?.type === "entity.too.large") {
     return res.status(413).json({
       ok: false,
-      mensaje: "Las imágenes seleccionadas son demasiado pesadas.",
+      mensaje:
+        "Las imágenes seleccionadas son demasiado pesadas.",
     });
   }
 
