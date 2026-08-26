@@ -120,3 +120,53 @@ export const crearReporte = async (req, res) => {
     });
   }
 };
+
+export const eliminarReporte = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reporte = await Report.findById(id);
+
+    if (!reporte) {
+      return res.status(404).json({
+        ok: false,
+        mensaje: "El reporte no existe.",
+      });
+    }
+
+    const esAutor =
+      reporte.autor.toString() ===
+      req.usuario._id.toString();
+
+    const puedeModerar = [
+      "moderador",
+      "administrador",
+    ].includes(req.usuario.rol);
+
+    if (!esAutor && !puedeModerar) {
+      return res.status(403).json({
+        ok: false,
+        mensaje:
+          "No tienes permiso para eliminar este reporte.",
+      });
+    }
+
+    await Report.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      ok: true,
+      mensaje: "Reporte eliminado correctamente.",
+      reporteId: id,
+    });
+  } catch (error) {
+    console.error(
+      "Error eliminando reporte:",
+      error.message,
+    );
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo eliminar el reporte.",
+    });
+  }
+};
