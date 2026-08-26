@@ -79,6 +79,14 @@ const reportSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+
+    confirmadoPor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
   },
   {
     timestamps: true,

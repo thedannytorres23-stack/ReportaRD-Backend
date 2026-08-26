@@ -121,6 +121,79 @@ export const crearReporte = async (req, res) => {
   }
 };
 
+
+export const confirmarReporte = async (req, res) => {
+  try {
+    const reporteId = req.params.id;
+    const usuarioId = req.usuario._id;
+
+    const reporte = await Report.findById(reporteId);
+
+    if (!reporte) {
+      return res.status(404).json({
+        ok: false,
+        mensaje: "El reporte no existe.",
+      });
+    }
+
+    if (
+      String(reporte.autor) === String(usuarioId)
+    ) {
+      return res.status(400).json({
+        ok: false,
+        mensaje:
+          "No puedes confirmar tu propio reporte.",
+      });
+    }
+
+    const indiceConfirmacion =
+      reporte.confirmadoPor.findIndex(
+        (id) =>
+          String(id) === String(usuarioId),
+      );
+
+    let confirmado;
+
+    if (indiceConfirmacion >= 0) {
+      reporte.confirmadoPor.splice(
+        indiceConfirmacion,
+        1,
+      );
+
+      confirmado = false;
+    } else {
+      reporte.confirmadoPor.push(usuarioId);
+
+      confirmado = true;
+    }
+
+    reporte.confirmaciones =
+      reporte.confirmadoPor.length;
+
+    await reporte.save();
+
+    return res.status(200).json({
+      ok: true,
+      mensaje: confirmado
+        ? "Reporte confirmado correctamente."
+        : "Confirmación eliminada correctamente.",
+      confirmaciones: reporte.confirmaciones,
+      confirmado,
+    });
+  } catch (error) {
+    console.error(
+      "Error cambiando confirmación:",
+      error,
+    );
+
+    return res.status(500).json({
+      ok: false,
+      mensaje:
+        "No se pudo actualizar la confirmación.",
+    });
+  }
+};
+
 export const eliminarReporte = async (req, res) => {
   try {
     const { id } = req.params;
