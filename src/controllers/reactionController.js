@@ -1,8 +1,14 @@
 import mongoose from "mongoose";
 
 import Reaction from "../models/Reaction.js";
+
 import Post from "../models/Post.js";
+
 import Report from "../models/Report.js";
+
+import {
+  crearNotificacion,
+} from "../services/notificationService.js";
 
 const REACCIONES_PUBLICACION = [
   "me_importa",
@@ -24,12 +30,15 @@ const REACCIONES_REPORTE = [
 
 const obtenerModeloContenido = (tipoContenido) => {
   if (tipoContenido === "post") return Post;
+
   if (tipoContenido === "report") return Report;
 
   return null;
 };
 
-const obtenerReaccionesPermitidas = (tipoContenido) => {
+const obtenerReaccionesPermitidas = (
+  tipoContenido,
+) => {
   if (tipoContenido === "post") {
     return REACCIONES_PUBLICACION;
   }
@@ -49,9 +58,10 @@ const obtenerResumen = async (
     {
       $match: {
         tipoContenido,
-        contenidoId: new mongoose.Types.ObjectId(
-          contenidoId,
-        ),
+        contenidoId:
+          new mongoose.Types.ObjectId(
+            contenidoId,
+          ),
       },
     },
     {
@@ -69,7 +79,9 @@ const obtenerResumen = async (
   let total = 0;
 
   resultados.forEach((resultado) => {
-    resumen[resultado._id] = resultado.cantidad;
+    resumen[resultado._id] =
+      resultado.cantidad;
+
     total += resultado.cantidad;
   });
 
@@ -79,7 +91,10 @@ const obtenerResumen = async (
   };
 };
 
-export const reaccionar = async (req, res) => {
+export const reaccionar = async (
+  req,
+  res,
+) => {
   try {
     const {
       tipoContenido,
@@ -99,7 +114,9 @@ export const reaccionar = async (req, res) => {
       });
     }
 
-    if (!mongoose.isValidObjectId(contenidoId)) {
+    if (
+      !mongoose.isValidObjectId(contenidoId)
+    ) {
       return res.status(400).json({
         ok: false,
         mensaje:
@@ -119,10 +136,14 @@ export const reaccionar = async (req, res) => {
     }
 
     const reaccionesPermitidas =
-      obtenerReaccionesPermitidas(tipoContenido);
+      obtenerReaccionesPermitidas(
+        tipoContenido,
+      );
 
     if (
-      !reaccionesPermitidas.includes(tipoReaccion)
+      !reaccionesPermitidas.includes(
+        tipoReaccion,
+      )
     ) {
       return res.status(400).json({
         ok: false,
@@ -132,7 +153,9 @@ export const reaccionar = async (req, res) => {
     }
 
     const contenido =
-      await ModeloContenido.findById(contenidoId);
+      await ModeloContenido.findById(
+        contenidoId,
+      );
 
     if (!contenido) {
       return res.status(404).json({
@@ -150,6 +173,7 @@ export const reaccionar = async (req, res) => {
       });
 
     let miReaccion = null;
+
     let accion = "";
 
     if (!reaccionExistente) {
@@ -161,7 +185,30 @@ export const reaccionar = async (req, res) => {
       });
 
       miReaccion = tipoReaccion;
+
       accion = "creada";
+
+      /*
+       * Solo una reacción NUEVA genera
+       * una notificación.
+       *
+       * Cambiarla o eliminarla no genera
+       * notificaciones adicionales.
+       */
+
+      const nombreContenido =
+        tipoContenido === "post"
+          ? "publicación"
+          : "reporte";
+
+      await crearNotificacion({
+        usuario: contenido.autor,
+        emisor: req.usuario._id,
+        tipo: "reaccion",
+        mensaje: `reaccionó a tu ${nombreContenido}.`,
+        tipoContenido,
+        contenidoId,
+      });
     } else if (
       reaccionExistente.tipoReaccion ===
       tipoReaccion
@@ -171,6 +218,7 @@ export const reaccionar = async (req, res) => {
       );
 
       miReaccion = null;
+
       accion = "eliminada";
     } else {
       reaccionExistente.tipoReaccion =
@@ -179,6 +227,7 @@ export const reaccionar = async (req, res) => {
       await reaccionExistente.save();
 
       miReaccion = tipoReaccion;
+
       accion = "cambiada";
     }
 
@@ -221,7 +270,10 @@ export const obtenerReacciones = async (
       contenidoId,
     } = req.query;
 
-    if (!tipoContenido || !contenidoId) {
+    if (
+      !tipoContenido ||
+      !contenidoId
+    ) {
       return res.status(400).json({
         ok: false,
         mensaje:
@@ -229,7 +281,9 @@ export const obtenerReacciones = async (
       });
     }
 
-    if (!mongoose.isValidObjectId(contenidoId)) {
+    if (
+      !mongoose.isValidObjectId(contenidoId)
+    ) {
       return res.status(400).json({
         ok: false,
         mensaje:
@@ -281,7 +335,8 @@ export const obtenerReacciones = async (
       total,
       resumen,
       miReaccion:
-        reaccionUsuario?.tipoReaccion || null,
+        reaccionUsuario?.tipoReaccion ||
+        null,
     });
   } catch (error) {
     console.error(

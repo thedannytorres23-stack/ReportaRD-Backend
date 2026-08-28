@@ -1,9 +1,16 @@
 import Comment from "../models/Comment.js";
+
 import Post from "../models/Post.js";
+
 import Report from "../models/Report.js";
+
+import {
+  crearNotificacion,
+} from "../services/notificationService.js";
 
 const obtenerModeloContenido = (tipoContenido) => {
   if (tipoContenido === "post") return Post;
+
   if (tipoContenido === "report") return Report;
 
   return null;
@@ -20,15 +27,16 @@ const sincronizarContadorComentarios = async (
     return 0;
   }
 
-  const totalComentarios = await Comment.countDocuments({
-    tipoContenido,
-    contenidoId,
-    estado: "publicado",
+  const totalComentarios =
+    await Comment.countDocuments({
+      tipoContenido,
+      contenidoId,
+      estado: "publicado",
 
-    // Solo contamos comentarios principales.
-    // Las respuestas no aumentan el contador del feed.
-    respuestaA: null,
-  });
+      // Solo contamos comentarios principales.
+      // Las respuestas no aumentan el contador del feed.
+      respuestaA: null,
+    });
 
   await ModeloContenido.findByIdAndUpdate(
     contenidoId,
@@ -42,7 +50,10 @@ const sincronizarContadorComentarios = async (
   return totalComentarios;
 };
 
-export const crearComentario = async (req, res) => {
+export const crearComentario = async (
+  req,
+  res,
+) => {
   try {
     const {
       tipoContenido,
@@ -74,7 +85,9 @@ export const crearComentario = async (req, res) => {
     }
 
     const contenidoPrincipal =
-      await ModeloContenido.findById(contenidoId);
+      await ModeloContenido.findById(
+        contenidoId,
+      );
 
     if (!contenidoPrincipal) {
       return res.status(404).json({
@@ -84,8 +97,10 @@ export const crearComentario = async (req, res) => {
       });
     }
 
+    let comentarioPadre = null;
+
     if (respuestaA) {
-      const comentarioPadre = await Comment.findOne({
+      comentarioPadre = await Comment.findOne({
         _id: respuestaA,
         tipoContenido,
         contenidoId,
@@ -129,12 +144,44 @@ export const crearComentario = async (req, res) => {
         );
     }
 
+    /*
+     * NOTIFICACIONES
+     */
+
+    if (respuestaA && comentarioPadre) {
+      // Alguien respondió un comentario.
+      await crearNotificacion({
+        usuario: comentarioPadre.autor,
+        emisor: req.usuario._id,
+        tipo: "respuesta",
+        mensaje: "respondió tu comentario.",
+        tipoContenido,
+        contenidoId,
+        comentarioId: comentario._id,
+      });
+    } else {
+      // Alguien comentó directamente una publicación o reporte.
+      const nombreContenido =
+        tipoContenido === "post"
+          ? "publicación"
+          : "reporte";
+
+      await crearNotificacion({
+        usuario: contenidoPrincipal.autor,
+        emisor: req.usuario._id,
+        tipo: "comentario",
+        mensaje: `comentó tu ${nombreContenido}.`,
+        tipoContenido,
+        contenidoId,
+        comentarioId: comentario._id,
+      });
+    }
+
     return res.status(201).json({
       ok: true,
       mensaje: respuestaA
         ? "Respuesta publicada."
         : "Comentario publicado.",
-
       comentario: comentarioCompleto,
       totalComentarios,
     });
@@ -152,7 +199,10 @@ export const crearComentario = async (req, res) => {
   }
 };
 
-export const listarComentarios = async (req, res) => {
+export const listarComentarios = async (
+  req,
+  res,
+) => {
   try {
     const {
       tipoContenido,
@@ -178,7 +228,9 @@ export const listarComentarios = async (req, res) => {
     }
 
     const contenidoPrincipal =
-      await ModeloContenido.findById(contenidoId);
+      await ModeloContenido.findById(
+        contenidoId,
+      );
 
     if (!contenidoPrincipal) {
       return res.status(404).json({
@@ -231,9 +283,10 @@ export const eliminarComentario = async (
   res,
 ) => {
   try {
-    const comentario = await Comment.findById(
-      req.params.id,
-    );
+    const comentario =
+      await Comment.findById(
+        req.params.id,
+      );
 
     if (!comentario) {
       return res.status(404).json({
@@ -257,6 +310,7 @@ export const eliminarComentario = async (
       !comentario.respuestaA;
 
     comentario.estado = "eliminado";
+
     await comentario.save();
 
     let totalComentarios = null;
