@@ -1,12 +1,68 @@
 import Report from "../models/Report.js";
+import Comment from "../models/Comment.js";
 
 const escaparRegex = (texto = "") => {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
-export const listarReportes = async (req, res) => {
+const agregarContadoresComentarios = async (
+  reportes = [],
+) => {
+  if (reportes.length === 0) {
+    return reportes;
+  }
+
+  const ids = reportes.map(
+    (reporte) => reporte._id,
+  );
+
+  const resultados = await Comment.aggregate([
+    {
+      $match: {
+        tipoContenido: "report",
+        contenidoId: {
+          $in: ids,
+        },
+        estado: "publicado",
+
+        // Las respuestas no inflan el contador.
+        respuestaA: null,
+      },
+    },
+    {
+      $group: {
+        _id: "$contenidoId",
+        total: {
+          $sum: 1,
+        },
+      },
+    },
+  ]);
+
+  const contadorPorReporte = new Map(
+    resultados.map((resultado) => [
+      String(resultado._id),
+      resultado.total,
+    ]),
+  );
+
+  return reportes.map((reporte) => ({
+    ...reporte,
+
+    comentarios:
+      contadorPorReporte.get(
+        String(reporte._id),
+      ) || 0,
+  }));
+};
+
+export const listarReportes = async (
+  req,
+  res,
+) => {
   try {
-    const buscar = req.query.buscar?.trim() || "";
+    const buscar =
+      req.query.buscar?.trim() || "";
 
     const limite = Math.min(
       Number(req.query.limite) || 30,
@@ -26,14 +82,24 @@ export const listarReportes = async (req, res) => {
       );
 
       filtro.$or = [
-        { titulo: expresion },
-        { descripcion: expresion },
-        { categoria: expresion },
-        { ubicacion: expresion },
+        {
+          titulo: expresion,
+        },
+        {
+          descripcion: expresion,
+        },
+        {
+          categoria: expresion,
+        },
+        {
+          ubicacion: expresion,
+        },
       ];
     }
 
-    const reportes = await Report.find(filtro)
+    const reportesBase = await Report.find(
+      filtro,
+    )
       .populate(
         "autor",
         "nombre usuario foto activo",
@@ -43,6 +109,11 @@ export const listarReportes = async (req, res) => {
       })
       .limit(limite)
       .lean();
+
+    const reportes =
+      await agregarContadoresComentarios(
+        reportesBase,
+      );
 
     return res.status(200).json({
       ok: true,
@@ -57,12 +128,16 @@ export const listarReportes = async (req, res) => {
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudieron obtener los reportes.",
+      mensaje:
+        "No se pudieron obtener los reportes.",
     });
   }
 };
 
-export const crearReporte = async (req, res) => {
+export const crearReporte = async (
+  req,
+  res,
+) => {
   try {
     const {
       titulo,
@@ -90,7 +165,8 @@ export const crearReporte = async (req, res) => {
     const reporte = await Report.create({
       autor: req.usuario._id,
       titulo: titulo.trim(),
-      descripcion: descripcion.trim(),
+      descripcion:
+        descripcion.trim(),
       categoria: categoria.trim(),
       ubicacion: ubicacion.trim(),
       coordenadas,
@@ -105,7 +181,8 @@ export const crearReporte = async (req, res) => {
 
     return res.status(201).json({
       ok: true,
-      mensaje: "Reporte creado correctamente.",
+      mensaje:
+        "Reporte creado correctamente.",
       reporte,
     });
   } catch (error) {
@@ -116,28 +193,39 @@ export const crearReporte = async (req, res) => {
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudo crear el reporte.",
+      mensaje:
+        "No se pudo crear el reporte.",
     });
   }
 };
 
-
-export const confirmarReporte = async (req, res) => {
+export const confirmarReporte = async (
+  req,
+  res,
+) => {
   try {
-    const reporteId = req.params.id;
-    const usuarioId = req.usuario._id;
+    const reporteId =
+      req.params.id;
 
-    const reporte = await Report.findById(reporteId);
+    const usuarioId =
+      req.usuario._id;
+
+    const reporte =
+      await Report.findById(
+        reporteId,
+      );
 
     if (!reporte) {
       return res.status(404).json({
         ok: false,
-        mensaje: "El reporte no existe.",
+        mensaje:
+          "El reporte no existe.",
       });
     }
 
     if (
-      String(reporte.autor) === String(usuarioId)
+      String(reporte.autor) ===
+      String(usuarioId)
     ) {
       return res.status(400).json({
         ok: false,
@@ -149,7 +237,8 @@ export const confirmarReporte = async (req, res) => {
     const indiceConfirmacion =
       reporte.confirmadoPor.findIndex(
         (id) =>
-          String(id) === String(usuarioId),
+          String(id) ===
+          String(usuarioId),
       );
 
     let confirmado;
@@ -162,7 +251,9 @@ export const confirmarReporte = async (req, res) => {
 
       confirmado = false;
     } else {
-      reporte.confirmadoPor.push(usuarioId);
+      reporte.confirmadoPor.push(
+        usuarioId,
+      );
 
       confirmado = true;
     }
@@ -174,10 +265,14 @@ export const confirmarReporte = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
+
       mensaje: confirmado
         ? "Reporte confirmado correctamente."
         : "Confirmación eliminada correctamente.",
-      confirmaciones: reporte.confirmaciones,
+
+      confirmaciones:
+        reporte.confirmaciones,
+
       confirmado,
     });
   } catch (error) {
@@ -194,16 +289,21 @@ export const confirmarReporte = async (req, res) => {
   }
 };
 
-export const eliminarReporte = async (req, res) => {
+export const eliminarReporte = async (
+  req,
+  res,
+) => {
   try {
     const { id } = req.params;
 
-    const reporte = await Report.findById(id);
+    const reporte =
+      await Report.findById(id);
 
     if (!reporte) {
       return res.status(404).json({
         ok: false,
-        mensaje: "El reporte no existe.",
+        mensaje:
+          "El reporte no existe.",
       });
     }
 
@@ -228,7 +328,8 @@ export const eliminarReporte = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      mensaje: "Reporte eliminado correctamente.",
+      mensaje:
+        "Reporte eliminado correctamente.",
       reporteId: id,
     });
   } catch (error) {
@@ -239,7 +340,8 @@ export const eliminarReporte = async (req, res) => {
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudo eliminar el reporte.",
+      mensaje:
+        "No se pudo eliminar el reporte.",
     });
   }
 };

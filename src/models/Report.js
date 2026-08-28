@@ -9,6 +9,12 @@ const reportSchema = new mongoose.Schema(
       index: true,
     },
 
+    comentarios: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
     titulo: {
       type: String,
       required: [true, "El título es obligatorio"],

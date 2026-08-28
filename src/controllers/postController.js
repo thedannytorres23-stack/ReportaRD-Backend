@@ -1,34 +1,116 @@
 import mongoose from "mongoose";
+
 import Post from "../models/Post.js";
+import Comment from "../models/Comment.js";
 
 const escaparRegex = (texto = "") => {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
-export const listarPublicaciones = async (req, res) => {
+const agregarContadoresComentarios = async (
+  publicaciones = [],
+) => {
+  if (publicaciones.length === 0) {
+    return publicaciones;
+  }
+
+  const ids = publicaciones.map(
+    (publicacion) => publicacion._id,
+  );
+
+  const resultados = await Comment.aggregate([
+    {
+      $match: {
+        tipoContenido: "post",
+        contenidoId: {
+          $in: ids,
+        },
+        estado: "publicado",
+
+        // Solo comentarios principales.
+        respuestaA: null,
+      },
+    },
+    {
+      $group: {
+        _id: "$contenidoId",
+        total: {
+          $sum: 1,
+        },
+      },
+    },
+  ]);
+
+  const contadorPorPublicacion = new Map(
+    resultados.map((resultado) => [
+      String(resultado._id),
+      resultado.total,
+    ]),
+  );
+
+  return publicaciones.map((publicacion) => ({
+    ...publicacion,
+
+    comentarios:
+      contadorPorPublicacion.get(
+        String(publicacion._id),
+      ) || 0,
+  }));
+};
+
+export const listarPublicaciones = async (
+  req,
+  res,
+) => {
   try {
-    const buscar = req.query.buscar?.trim() || "";
-    const limite = Math.min(Number(req.query.limite) || 30, 50);
+    const buscar =
+      req.query.buscar?.trim() || "";
+
+    const limite = Math.min(
+      Number(req.query.limite) || 30,
+      50,
+    );
 
     const filtro = {
       estado: "publicada",
     };
 
     if (buscar) {
-      const expresion = new RegExp(escaparRegex(buscar), "i");
+      const expresion = new RegExp(
+        escaparRegex(buscar),
+        "i",
+      );
 
       filtro.$or = [
-        { titulo: expresion },
-        { contenido: expresion },
-        { comunidad: expresion },
+        {
+          titulo: expresion,
+        },
+        {
+          contenido: expresion,
+        },
+        {
+          comunidad: expresion,
+        },
       ];
     }
 
-    const publicaciones = await Post.find(filtro)
-      .populate("autor", "nombre usuario foto activo")
-      .sort({ createdAt: -1 })
+    const publicacionesBase = await Post.find(
+      filtro,
+    )
+      .populate(
+        "autor",
+        "nombre usuario foto activo",
+      )
+      .sort({
+        createdAt: -1,
+      })
       .limit(limite)
       .lean();
+
+    const publicaciones =
+      await agregarContadoresComentarios(
+        publicacionesBase,
+      );
 
     return res.status(200).json({
       ok: true,
@@ -36,55 +118,79 @@ export const listarPublicaciones = async (req, res) => {
       publicaciones,
     });
   } catch (error) {
-    console.error("Error listando publicaciones:", error.message);
+    console.error(
+      "Error listando publicaciones:",
+      error.message,
+    );
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudieron obtener las publicaciones.",
+      mensaje:
+        "No se pudieron obtener las publicaciones.",
     });
   }
 };
 
-export const obtenerPublicacion = async (req, res) => {
+export const obtenerPublicacion = async (
+  req,
+  res,
+) => {
   try {
     const { id } = req.params;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         ok: false,
-        mensaje: "El identificador de la publicación no es válido.",
+        mensaje:
+          "El identificador de la publicación no es válido.",
       });
     }
 
-    const publicacion = await Post.findOne({
+    const publicacionBase = await Post.findOne({
       _id: id,
       estado: "publicada",
     })
-      .populate("autor", "nombre usuario foto activo")
+      .populate(
+        "autor",
+        "nombre usuario foto activo",
+      )
       .lean();
 
-    if (!publicacion) {
+    if (!publicacionBase) {
       return res.status(404).json({
         ok: false,
-        mensaje: "La publicación no existe.",
+        mensaje:
+          "La publicación no existe.",
       });
     }
+
+    const [publicacion] =
+      await agregarContadoresComentarios([
+        publicacionBase,
+      ]);
 
     return res.status(200).json({
       ok: true,
       publicacion,
     });
   } catch (error) {
-    console.error("Error obteniendo publicación:", error.message);
+    console.error(
+      "Error obteniendo publicación:",
+      error.message,
+    );
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudo obtener la publicación.",
+      mensaje:
+        "No se pudo obtener la publicación.",
     });
   }
 };
 
-export const crearPublicacion = async (req, res) => {
+export const crearPublicacion = async (
+  req,
+  res,
+) => {
   try {
     const {
       titulo = "",
@@ -97,7 +203,8 @@ export const crearPublicacion = async (req, res) => {
     if (!contenido?.trim()) {
       return res.status(400).json({
         ok: false,
-        mensaje: "Escribe el contenido de la publicación.",
+        mensaje:
+          "Escribe el contenido de la publicación.",
       });
     }
 
@@ -117,22 +224,31 @@ export const crearPublicacion = async (req, res) => {
 
     return res.status(201).json({
       ok: true,
-      mensaje: "Publicación creada correctamente.",
+      mensaje:
+        "Publicación creada correctamente.",
       publicacion,
     });
   } catch (error) {
-    console.error("Error creando publicación:", error.message);
+    console.error(
+      "Error creando publicación:",
+      error.message,
+    );
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudo crear la publicación.",
+      mensaje:
+        "No se pudo crear la publicación.",
     });
   }
 };
 
-export const editarPublicacion = async (req, res) => {
+export const editarPublicacion = async (
+  req,
+  res,
+) => {
   try {
     const { id } = req.params;
+
     const {
       titulo,
       contenido,
@@ -144,16 +260,21 @@ export const editarPublicacion = async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         ok: false,
-        mensaje: "El identificador de la publicación no es válido.",
+        mensaje:
+          "El identificador de la publicación no es válido.",
       });
     }
 
     const publicacion = await Post.findById(id);
 
-    if (!publicacion || publicacion.estado === "eliminada") {
+    if (
+      !publicacion ||
+      publicacion.estado === "eliminada"
+    ) {
       return res.status(404).json({
         ok: false,
-        mensaje: "La publicación no existe.",
+        mensaje:
+          "La publicación no existe.",
       });
     }
 
@@ -164,7 +285,8 @@ export const editarPublicacion = async (req, res) => {
     if (!esAutor) {
       return res.status(403).json({
         ok: false,
-        mensaje: "No tienes permiso para editar esta publicación.",
+        mensaje:
+          "No tienes permiso para editar esta publicación.",
       });
     }
 
@@ -174,28 +296,34 @@ export const editarPublicacion = async (req, res) => {
     ) {
       return res.status(400).json({
         ok: false,
-        mensaje: "El contenido de la publicación no puede estar vacío.",
+        mensaje:
+          "El contenido de la publicación no puede estar vacío.",
       });
     }
 
     if (titulo !== undefined) {
-      publicacion.titulo = titulo.trim();
+      publicacion.titulo =
+        titulo.trim();
     }
 
     if (contenido !== undefined) {
-      publicacion.contenido = contenido.trim();
+      publicacion.contenido =
+        contenido.trim();
     }
 
     if (comunidad !== undefined) {
-      publicacion.comunidad = comunidad;
+      publicacion.comunidad =
+        comunidad;
     }
 
     if (mediaUrl !== undefined) {
-      publicacion.mediaUrl = mediaUrl;
+      publicacion.mediaUrl =
+        mediaUrl;
     }
 
     if (mediaTipo !== undefined) {
-      publicacion.mediaTipo = mediaTipo;
+      publicacion.mediaTipo =
+        mediaTipo;
     }
 
     await publicacion.save();
@@ -207,36 +335,50 @@ export const editarPublicacion = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      mensaje: "Publicación actualizada correctamente.",
+      mensaje:
+        "Publicación actualizada correctamente.",
       publicacion,
     });
   } catch (error) {
-    console.error("Error editando publicación:", error.message);
+    console.error(
+      "Error editando publicación:",
+      error.message,
+    );
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudo editar la publicación.",
+      mensaje:
+        "No se pudo editar la publicación.",
     });
   }
 };
 
-export const eliminarPublicacion = async (req, res) => {
+export const eliminarPublicacion = async (
+  req,
+  res,
+) => {
   try {
     const { id } = req.params;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         ok: false,
-        mensaje: "El identificador de la publicación no es válido.",
+        mensaje:
+          "El identificador de la publicación no es válido.",
       });
     }
 
-    const publicacion = await Post.findById(id);
+    const publicacion =
+      await Post.findById(id);
 
-    if (!publicacion || publicacion.estado === "eliminada") {
+    if (
+      !publicacion ||
+      publicacion.estado === "eliminada"
+    ) {
       return res.status(404).json({
         ok: false,
-        mensaje: "La publicación no existe.",
+        mensaje:
+          "La publicación no existe.",
       });
     }
 
@@ -252,7 +394,8 @@ export const eliminarPublicacion = async (req, res) => {
     if (!esAutor && !puedeModerar) {
       return res.status(403).json({
         ok: false,
-        mensaje: "No tienes permiso para eliminar esta publicación.",
+        mensaje:
+          "No tienes permiso para eliminar esta publicación.",
       });
     }
 
@@ -262,15 +405,20 @@ export const eliminarPublicacion = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      mensaje: "Publicación eliminada correctamente.",
+      mensaje:
+        "Publicación eliminada correctamente.",
       publicacionId: publicacion._id,
     });
   } catch (error) {
-    console.error("Error eliminando publicación:", error.message);
+    console.error(
+      "Error eliminando publicación:",
+      error.message,
+    );
 
     return res.status(500).json({
       ok: false,
-      mensaje: "No se pudo eliminar la publicación.",
+      mensaje:
+        "No se pudo eliminar la publicación.",
     });
   }
 };

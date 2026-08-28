@@ -7,6 +7,8 @@ import postRoutes from "./routes/postRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import commentRoutes from "./routes/commentRoutes.js";
+import reactionRoutes from "./routes/reactionRoutes.js";
 const app = express();
 
 const origenesPermitidos = (
@@ -61,6 +63,10 @@ app.use("/api/posts", postRoutes);
 app.use("/api/uploads", uploadRoutes);
 
 app.use("/api/reports", reportRoutes);
+
+app.use("/api/comments", commentRoutes);
+
+app.use("/api/reactions", reactionRoutes);
 
 app.get("/", (req, res) => {
   res.json({

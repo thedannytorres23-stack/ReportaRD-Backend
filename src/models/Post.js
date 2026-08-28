@@ -9,6 +9,12 @@ const postSchema = new mongoose.Schema(
       index: true,
     },
 
+    comentarios: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
     titulo: {
       type: String,
       trim: true,
@@ -53,7 +59,11 @@ const postSchema = new mongoose.Schema(
     timestamps: true,
     versionKey: false,
   },
+
+
 );
+
+
 
 postSchema.index({
   titulo: "text",
