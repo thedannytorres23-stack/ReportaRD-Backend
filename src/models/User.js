@@ -57,6 +57,20 @@ const userSchema = new mongoose.Schema(
       default: "República Dominicana",
     },
 
+    seguidores: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    seguidos: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     activo: {
       type: Boolean,
       default: false,

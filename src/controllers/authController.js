@@ -158,10 +158,47 @@ export const iniciarSesion = async (req, res) => {
 };
 
 export const obtenerPerfil = async (req, res) => {
-  return res.status(200).json({
-    ok: true,
-    usuario: req.usuario,
-  });
+  try {
+    const usuario = await User.findById(
+      req.usuario._id,
+    ).lean();
+
+    if (!usuario) {
+      return res.status(404).json({
+        ok: false,
+        mensaje: "El usuario no existe.",
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+
+      usuario: {
+        ...usuario,
+
+        totalSeguidores:
+          usuario.seguidores?.length || 0,
+
+        totalSeguidos:
+          usuario.seguidos?.length || 0,
+
+        seguidores: undefined,
+        seguidos: undefined,
+        contrasena: undefined,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Error obteniendo perfil:",
+      error.message,
+    );
+
+    return res.status(500).json({
+      ok: false,
+      mensaje:
+        "No se pudo obtener el perfil.",
+    });
+  }
 };
 
 export const actualizarPerfil = async (req, res) => {

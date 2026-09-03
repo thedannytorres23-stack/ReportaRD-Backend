@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import app from "./src/app.js";
 import { conectarBaseDatos } from "./src/config/database.js";
 import configurarChatSocket from "./src/sockets/chatSocket.js";
+import { establecerSocketIO } from "./src/sockets/socketManager.js";
 
 const puerto = process.env.PORT || 5000;
 
@@ -35,6 +36,8 @@ const iniciarServidor = async () => {
         credentials: true,
       },
     });
+
+    establecerSocketIO(io);
 
     configurarChatSocket(io);
 

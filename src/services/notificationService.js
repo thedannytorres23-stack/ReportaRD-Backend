@@ -1,4 +1,5 @@
 import Notification from "../models/Notification.js";
+import { obtenerSocketIO } from "../sockets/socketManager.js";
 
 export const crearNotificacion = async ({
   usuario,
@@ -28,7 +29,28 @@ export const crearNotificacion = async ({
       comentarioId,
     });
 
-    return notificacion;
+    const notificacionCompleta =
+      await Notification.findById(
+        notificacion._id,
+      )
+        .populate(
+          "emisor",
+          "nombre usuario foto",
+        )
+        .lean();
+
+    const io = obtenerSocketIO();
+
+    if (io && notificacionCompleta) {
+      io
+        .to(`usuario:${String(usuario)}`)
+        .emit(
+          "notificacion:nueva",
+          notificacionCompleta,
+        );
+    }
+
+    return notificacionCompleta || notificacion;
   } catch (error) {
     console.error(
       "Error creando notificación:",

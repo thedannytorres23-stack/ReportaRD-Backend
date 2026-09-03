@@ -1,8 +1,18 @@
 import Report from "../models/Report.js";
+
 import Comment from "../models/Comment.js";
 
+import Notification from "../models/Notification.js";
+
+import {
+  crearNotificacion,
+} from "../services/notificationService.js";
+
 const escaparRegex = (texto = "") => {
-  return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return texto.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
 };
 
 const agregarContadoresComentarios = async (
@@ -20,18 +30,22 @@ const agregarContadoresComentarios = async (
     {
       $match: {
         tipoContenido: "report",
+
         contenidoId: {
           $in: ids,
         },
+
         estado: "publicado",
 
         // Las respuestas no inflan el contador.
         respuestaA: null,
       },
     },
+
     {
       $group: {
         _id: "$contenidoId",
+
         total: {
           $sum: 1,
         },
@@ -157,6 +171,7 @@ export const crearReporte = async (
     ) {
       return res.status(400).json({
         ok: false,
+
         mensaje:
           "Título, descripción, categoría y ubicación son obligatorios.",
       });
@@ -164,11 +179,18 @@ export const crearReporte = async (
 
     const reporte = await Report.create({
       autor: req.usuario._id,
+
       titulo: titulo.trim(),
+
       descripcion:
         descripcion.trim(),
-      categoria: categoria.trim(),
-      ubicacion: ubicacion.trim(),
+
+      categoria:
+        categoria.trim(),
+
+      ubicacion:
+        ubicacion.trim(),
+
       coordenadas,
       mediaUrl,
       mediaTipo,
@@ -181,8 +203,10 @@ export const crearReporte = async (
 
     return res.status(201).json({
       ok: true,
+
       mensaje:
         "Reporte creado correctamente.",
+
       reporte,
     });
   } catch (error) {
@@ -193,6 +217,7 @@ export const crearReporte = async (
 
     return res.status(500).json({
       ok: false,
+
       mensaje:
         "No se pudo crear el reporte.",
     });
@@ -218,6 +243,7 @@ export const confirmarReporte = async (
     if (!reporte) {
       return res.status(404).json({
         ok: false,
+
         mensaje:
           "El reporte no existe.",
       });
@@ -229,6 +255,7 @@ export const confirmarReporte = async (
     ) {
       return res.status(400).json({
         ok: false,
+
         mensaje:
           "No puedes confirmar tu propio reporte.",
       });
@@ -244,6 +271,10 @@ export const confirmarReporte = async (
     let confirmado;
 
     if (indiceConfirmacion >= 0) {
+      /*
+       * RETIRAR CONFIRMACIÓN
+       */
+
       reporte.confirmadoPor.splice(
         indiceConfirmacion,
         1,
@@ -251,6 +282,10 @@ export const confirmarReporte = async (
 
       confirmado = false;
     } else {
+      /*
+       * CONFIRMAR REPORTE
+       */
+
       reporte.confirmadoPor.push(
         usuarioId,
       );
@@ -262,6 +297,46 @@ export const confirmarReporte = async (
       reporte.confirmadoPor.length;
 
     await reporte.save();
+
+    /*
+     * NOTIFICACIÓN DE CONFIRMACIÓN
+     */
+
+    if (confirmado) {
+      await crearNotificacion({
+        usuario: reporte.autor,
+
+        emisor: usuarioId,
+
+        tipo: "confirmacion",
+
+        mensaje:
+          "confirmó tu reporte.",
+
+        tipoContenido: "report",
+
+        contenidoId:
+          reporte._id,
+      });
+    } else {
+      /*
+       * Si retira la confirmación,
+       * también retiramos su notificación.
+       */
+
+      await Notification.deleteOne({
+        usuario: reporte.autor,
+
+        emisor: usuarioId,
+
+        tipo: "confirmacion",
+
+        tipoContenido: "report",
+
+        contenidoId:
+          reporte._id,
+      });
+    }
 
     return res.status(200).json({
       ok: true,
@@ -283,6 +358,7 @@ export const confirmarReporte = async (
 
     return res.status(500).json({
       ok: false,
+
       mensaje:
         "No se pudo actualizar la confirmación.",
     });
@@ -302,6 +378,7 @@ export const eliminarReporte = async (
     if (!reporte) {
       return res.status(404).json({
         ok: false,
+
         mensaje:
           "El reporte no existe.",
       });
@@ -316,20 +393,39 @@ export const eliminarReporte = async (
       "administrador",
     ].includes(req.usuario.rol);
 
-    if (!esAutor && !puedeModerar) {
+    if (
+      !esAutor &&
+      !puedeModerar
+    ) {
       return res.status(403).json({
         ok: false,
+
         mensaje:
           "No tienes permiso para eliminar este reporte.",
       });
     }
 
-    await Report.findByIdAndDelete(id);
+    await Report.findByIdAndDelete(
+      id,
+    );
+
+    /*
+     * Eliminamos notificaciones asociadas
+     * a un reporte que ya no existe.
+     */
+
+    await Notification.deleteMany({
+      tipoContenido: "report",
+
+      contenidoId: id,
+    });
 
     return res.status(200).json({
       ok: true,
+
       mensaje:
         "Reporte eliminado correctamente.",
+
       reporteId: id,
     });
   } catch (error) {
@@ -340,6 +436,7 @@ export const eliminarReporte = async (
 
     return res.status(500).json({
       ok: false,
+
       mensaje:
         "No se pudo eliminar el reporte.",
     });
