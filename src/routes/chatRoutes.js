@@ -6,6 +6,7 @@ import {
   listarConversaciones,
   marcarComoLeidos,
   obtenerConversacion,
+  obtenerTotalNoLeidos,
 } from "../controllers/chatController.js";
 import { protegerRuta } from "../middleware/authMiddleware.js";
 
@@ -17,11 +18,15 @@ router.use(protegerRuta);
 // Listar las conversaciones del usuario
 router.get("/", listarConversaciones);
 
+router.get("/no-leidos", obtenerTotalNoLeidos);
+
 // Crear una conversación privada
 router.post("/privado", crearChatPrivado);
 
 // Crear un grupo
 router.post("/grupos", crearGrupo);
+
+
 
 // Consultar una conversación y sus mensajes
 router.get("/:conversacionId", obtenerConversacion);

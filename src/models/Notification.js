@@ -23,6 +23,7 @@ const notificationSchema = new mongoose.Schema(
         "reaccion",
         "confirmacion",
         "seguimiento",
+        "mensaje",
       ],
       required: true,
       index: true,

@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
+import { crearNotificacion } from "../services/notificationService.js";
+import { obtenerSocketIO } from "../sockets/socketManager.js";
 
 const CAMPOS_USUARIO =
   "nombre usuario foto activo ultimaActividad";
@@ -16,6 +18,40 @@ const usuarioPertenece = (conversacion, usuarioId) => {
       participante.toString() === usuarioId.toString(),
   );
 };
+
+
+const contarNoLeidosDelUsuario = async (usuarioId) => {
+  const conversaciones = await Conversation.find({
+    participantes: usuarioId,
+    activa: true,
+  }).select("_id");
+
+  const idsConversaciones = conversaciones.map(
+    (conversacion) => conversacion._id,
+  );
+
+  if (!idsConversaciones.length) {
+    return 0;
+  }
+
+  return Message.countDocuments({
+    conversacion: {
+      $in: idsConversaciones,
+    },
+    autor: {
+      $ne: usuarioId,
+    },
+    eliminadoParaTodos: false,
+    eliminadoPor: {
+      $ne: usuarioId,
+    },
+    "leidoPor.usuario": {
+      $ne: usuarioId,
+    },
+  });
+};
+
+
 
 // Crear o recuperar un chat privado
 export const crearChatPrivado = async (req, res) => {
@@ -336,6 +372,32 @@ export const obtenerConversacion = async (
   }
 };
 
+
+export const obtenerTotalNoLeidos = async (req, res) => {
+  try {
+    const total = await contarNoLeidosDelUsuario(
+      req.usuario._id,
+    );
+
+    return res.status(200).json({
+      ok: true,
+      total,
+    });
+  } catch (error) {
+    console.error(
+      "Error contando mensajes no leídos:",
+      error.message,
+    );
+
+    return res.status(500).json({
+      ok: false,
+      mensaje:
+        "No se pudieron consultar los mensajes no leídos.",
+    });
+  }
+};
+
+
 // Enviar y almacenar un mensaje
 export const enviarMensaje = async (req, res) => {
   try {
@@ -457,18 +519,34 @@ export const enviarMensaje = async (req, res) => {
 
 
 
-const io = req.app.get("io");
+    const io = req.app.get("io");
 
-if (io) {
-  io
-    .to(`conversacion:${conversacionId}`)
-    .emit("mensaje:nuevo", {
-      conversacionId,
-      mensaje,
-    });
-}
+    if (io) {
+      io
+        .to(`conversacion:${conversacionId}`)
+        .emit("mensaje:nuevo", {
+          conversacionId,
+          mensaje,
+        });
+    }
 
 
+    const destinatarios = conversacion.participantes.filter(
+      (participanteId) =>
+        participanteId.toString() !== req.usuario._id.toString(),
+    );
+
+    await Promise.all(
+      destinatarios.map((destinatarioId) =>
+        crearNotificacion({
+          usuario: destinatarioId,
+          emisor: req.usuario._id,
+          tipo: "mensaje",
+          mensaje: "te envió un mensaje.",
+          contenidoId: conversacion._id,
+        }),
+      ),
+    );
 
     return res.status(201).json({
       ok: true,
@@ -549,6 +627,21 @@ export const marcarComoLeidos = async (
         },
       },
     );
+
+
+    const totalNoLeidos = await contarNoLeidosDelUsuario(
+      req.usuario._id,
+    );
+
+    const io = obtenerSocketIO();
+
+    if (io) {
+      io
+        .to(`usuario:${req.usuario._id.toString()}`)
+        .emit("mensajes:no-leidos", {
+          total: totalNoLeidos,
+        });
+    }
 
     return res.status(200).json({
       ok: true,
