@@ -31,9 +31,22 @@ const userSchema = new mongoose.Schema(
 
     contrasena: {
       type: String,
-      required: [true, "La contraseña es obligatoria"],
       minlength: 8,
       select: false,
+      default: null,
+    },
+
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      default: undefined,
+    },
+
+    proveedorAuth: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
     },
 
     foto: {
@@ -94,12 +107,18 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre("save", async function () {
-  if (!this.isModified("contrasena")) return;
+  if (!this.isModified("contrasena") || !this.contrasena) {
+    return;
+  }
 
   this.contrasena = await bcrypt.hash(this.contrasena, 12);
 });
 
 userSchema.methods.compararContrasena = function (contrasena) {
+  if (!this.contrasena) {
+    return false;
+  }
+
   return bcrypt.compare(contrasena, this.contrasena);
 };
 
