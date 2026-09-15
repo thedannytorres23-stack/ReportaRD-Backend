@@ -10,7 +10,10 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
 import reactionRoutes from "./routes/reactionRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import historiaRoutes from "./routes/historiaRoutes.js";
+
 const app = express();
+
 
 const origenesPermitidos = (
   process.env.CLIENT_URLS ||
@@ -70,6 +73,8 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/reactions", reactionRoutes);
 
 app.use("/api/notifications", notificationRoutes);
+
+app.use("/api/historias", historiaRoutes);
 
 app.get("/", (req, res) => {
   res.json({
